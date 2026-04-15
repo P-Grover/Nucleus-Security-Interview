@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Calculator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0e0e0e;
+      --surface: #181818;
+      --border: #2a2a2a;
+      --accent: #c8ff00;
+      --accent-dim: #8ab300;
+      --text: #f0f0f0;
+      --muted: #555;
+      --btn-bg: #1f1f1f;
+      --btn-hover: #2a2a2a;
+      --btn-op: #252510;
+      --btn-op-hover: #333318;
+      --radius: 6px;
+    }
+
+    body {
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Syne', sans-serif;
+    }
+
+    .calc {
+      width: 320px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 0 60px rgba(200,255,0,0.06), 0 24px 48px rgba(0,0,0,0.6);
+    }
+
+    /* ── Display ── */
+    .display {
+      padding: 24px 20px 16px;
+      background: #111;
+      border-bottom: 1px solid var(--border);
+      min-height: 110px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 4px;
+    }
+
+    .expression {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      min-height: 18px;
+      text-align: right;
+    }
+
+    .result {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 42px;
+      color: var(--text);
+      text-align: right;
+      letter-spacing: -1px;
+      transition: color 0.15s;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .result.error { color: #ff5f5f; font-size: 20px; padding-bottom: 8px; }
+    .result.computed { color: var(--accent); }
+
+    /* ── Buttons ── */
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--border);
+    }
+
+    button {
+      background: var(--btn-bg);
+      border: none;
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      padding: 20px 0;
+      cursor: pointer;
+      transition: background 0.1s, color 0.1s, transform 0.08s;
+      user-select: none;
+    }
+
+    button:hover  { background: var(--btn-hover); }
+    button:active { transform: scale(0.92); }
+
+    /* Operators */
+    button.op {
+      background: var(--btn-op);
+      color: var(--accent);
+      font-size: 20px;
+    }
+    button.op:hover  { background: var(--btn-op-hover); }
+    button.op.active { background: var(--accent); color: #000; }
+
+    /* Clear */
+    button.clear {
+      color: #ff5f5f;
+      font-size: 15px;
+      letter-spacing: 0.04em;
+    }
+    button.clear:hover { background: #2a1414; }
+
+    /* Equals */
+    button.equals {
+      background: var(--accent);
+      color: #000;
+      font-size: 22px;
+    }
+    button.equals:hover { background: #d9ff33; }
+
+    /* Zero spans 2 cols */
+    button.zero { grid-column: span 2; }
+
+    /* Loading spinner on equals */
+    button.equals.loading { opacity: 0.6; pointer-events: none; }
+  </style>
+</head>
+<body>
+<div class="calc">
+  <div class="display">
+    <div class="expression" id="expr"></div>
+    <div class="result" id="result">0</div>
+  </div>
+  <div class="buttons">
+    <button class="clear" onclick="clearAll()">CLR</button>
+    <button onclick="backspace()">⌫</button>
+    <button onclick="inputDot()">.</button>
+    <button class="op" id="op-/" onclick="setOp('/')">÷</button>
+
+    <button onclick="inputNum('7')">7</button>
+    <button onclick="inputNum('8')">8</button>
+    <button onclick="inputNum('9')">9</button>
+    <button class="op" id="op-*" onclick="setOp('*')">×</button>
+
+    <button onclick="inputNum('4')">4</button>
+    <button onclick="inputNum('5')">5</button>
+    <button onclick="inputNum('6')">6</button>
+    <button class="op" id="op--" onclick="setOp('-')">−</button>
+
+    <button onclick="inputNum('1')">1</button>
+    <button onclick="inputNum('2')">2</button>
+    <button onclick="inputNum('3')">3</button>
+    <button class="op" id="op-+" onclick="setOp('+')">+</button>
+
+    <button class="zero" onclick="inputNum('0')">0</button>
+    <button class="equals" id="equals-btn" onclick="calculate()">=</button>
+  </div>
+</div>
+
+<script>
+  const BACKEND = 'http://localhost:5000/calculate';
+
+  let a = '', op = '', b = '', justComputed = false;
+
+  const exprEl   = document.getElementById('expr');
+  const resultEl = document.getElementById('result');
+
+  function updateDisplay(val, isError = false, isResult = false) {
+    resultEl.className = 'result' + (isError ? ' error' : isResult ? ' computed' : '');
+    resultEl.textContent = val || '0';
+  }
+
+  function updateExpr() {
+    const opSymbol = { '+':'+', '-':'−', '*':'×', '/':'÷' }[op] || '';
+    exprEl.textContent = [a, opSymbol, b].filter(Boolean).join(' ');
+  }
+
+  function highlightOp(o) {
+    document.querySelectorAll('button.op').forEach(btn => btn.classList.remove('active'));
+    if (o) document.getElementById('op-' + o)?.classList.add('active');
+  }
+
+  function inputNum(n) {
+    if (justComputed) { a = ''; op = ''; b = ''; justComputed = false; }
+    if (!op) {
+      if (a.length >= 12) return;
+      a += n;
+      updateDisplay(a);
+    } else {
+      if (b.length >= 12) return;
+      b += n;
+      updateDisplay(b);
+    }
+    updateExpr();
+  }
+
+  function inputDot() {
+    if (!op) {
+      if (a.includes('.')) return;
+      a = (a || '0') + '.';
+      updateDisplay(a);
+    } else {
+      if (b.includes('.')) return;
+      b = (b || '0') + '.';
+      updateDisplay(b);
+    }
+    updateExpr();
+  }
+
+  function setOp(o) {
+    if (!a) return;
+    // Chain: if both filled, calculate first
+    if (a && op && b) { calculate(o); return; }
+    op = o;
+    highlightOp(o);
+    updateExpr();
+  }
+
+  function backspace() {
+    if (!op) { a = a.slice(0, -1); updateDisplay(a || '0'); }
+    else if (b)  { b = b.slice(0, -1); updateDisplay(b || '0'); }
+    else { op = ''; highlightOp(null); updateDisplay(a || '0'); }
+    updateExpr();
+  }
+
+  function clearAll() {
+    a = ''; op = ''; b = ''; justComputed = false;
+    highlightOp(null);
+    updateDisplay('0');
+    exprEl.textContent = '';
+  }
+
+  async function calculate(nextOp) {
+    if (!a || !op || !b) return;
+
+    const btn = document.getElementById('equals-btn');
+    btn.classList.add('loading');
+
+    try {
+      const res  = await fetch(BACKEND, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ a: parseFloat(a), b: parseFloat(b), op })
+      });
+      const data = await res.json();
+
+      if (data.error) {
+        updateDisplay(data.error, true);
+        exprEl.textContent = '';
+        a = ''; op = ''; b = '';
+      } else {
+        const expr = `${a} ${{ '+':'+', '-':'−', '*':'×', '/':'÷' }[op]} ${b} =`;
+        exprEl.textContent = expr;
+        a = String(data.result);
+        op = nextOp || '';
+        b  = '';
+        highlightOp(nextOp || null);
+        updateDisplay(a, false, !nextOp);
+        justComputed = !nextOp;
+        if (nextOp) updateExpr();
+      }
+    } catch {
+      updateDisplay('Server unreachable', true);
+    } finally {
+      btn.classList.remove('loading');
+    }
+  }
+
+  // Keyboard support
+  document.addEventListener('keydown', e => {
+    if (e.key >= '0' && e.key <= '9') inputNum(e.key);
+    else if (e.key === '.') inputDot();
+    else if (e.key === '+') setOp('+');
+    else if (e.key === '-') setOp('-');
+    else if (e.key === '*') setOp('*');
+    else if (e.key === '/') { e.preventDefault(); setOp('/'); }
+    else if (e.key === 'Enter' || e.key === '=') calculate();
+    else if (e.key === 'Backspace') backspace();
+    else if (e.key === 'Escape') clearAll();
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+The challenge1.py code in this same folder is unchanged than what was given to me, I just added it here for it to be quicker to reference!
+
+Line 20: Python's == on strings doesn't work after the first mismatched character, an attacker can probe which characters of a valid signature are correct by measuring response time. 
+
+Line 22: The @app.post("/webhook") correctly accepts POST requests. 
+
+Line 24-25: request.data correctly captures the raw bytes before parsing, and the it also correctly gets the headers.
+
+Line 30: json.loads(raw.decode("utf-8")) will return a 500 with a stack trace if the body isn't valid JSON. The db connection isn't manager properly either, its never closed at the end of the scripts actions, it only relies on garbage collection. Something like a try/except and try/finally block could be used to properly manage this connection and debug JSON errors.
+
+Line 41-48: The payload would break out of the string literal because both queries build SQL by inserting user-controlled values into f-strings. You don't want the raw json body in the query. The Upsert logic is also just and Insert, if it is fired twice or it already exists, this will error out or create a duplicate row. Neither of which is an Upsert. This code also only reads email and role and completely ignores the metadata which could be what needed storing. 
+
+
+
+
+
+

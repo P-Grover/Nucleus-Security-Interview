@@ -1,0 +1,11 @@
+Download index.html and app.py to wherever you want to put them on your machine.
+Go to terminal and run:
+pip install flask flask-core
+pip install flask-cors
+
+Navigate to whichever folder app.py is in terminal and run "python app.py"
+Then open index.html in the browser and start calculating!
+You can see the logs of what API request is called in terminal and you press CTRL+C to quit.
+
+
+
